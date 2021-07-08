@@ -14,3 +14,15 @@
 /data/transcript_metadata.tsv
 /data/venue_embedding.tsv
 /data/venue_metadata.tsv
+/data/AMiner/
+/data/embeddings/
+/data/PBTA/raw/id_gene.txt
+/data/PBTA/raw/id_sample.txt
+/data/PBTA/raw/id_transcript.txt
+/data/PBTA/raw/sample_transcript.parquet
+/data/PBTA/raw/sample_transcript.txt
+/data/PBTA/raw/transcript_gene.txt
+/data/PBTA/processed/data.pt
+/data/PBTA/processed/pre_filter.pt
+/data/PBTA/processed/pre_transform.pt
+/src/metapath2vec.py
