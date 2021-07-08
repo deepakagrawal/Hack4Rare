@@ -1,0 +1,16 @@
+/data/text/
+/data/auth_embedding.tsv
+/data/auth_embedding.txt
+/data/auth_metadata.csv
+/data/auth_metadata.tsv
+/data/gene_embedding.tsv
+/data/gene_metadata.tsv
+/data/metadata-edited.tsv
+/data/out.csv
+/data/pbta-gene-expression-kallisto.stranded.rds
+/data/test.parquet
+/data/torch_model
+/data/transcript_embedding.tsv
+/data/transcript_metadata.tsv
+/data/venue_embedding.tsv
+/data/venue_metadata.tsv
