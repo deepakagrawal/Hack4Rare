@@ -5,7 +5,7 @@ import numpy as np
 
 df: pd.DataFrame = pyreadr.read_r("data/pbta-gene-expression-kallisto.stranded.rds")[None]
 # df = df.head(10000)
-df.gene_id.drop_duplicates().reset_index().to_csv('data/PBTA/raw/id_gene.txt', sep='\t', header=False)
+df.gene_id.drop_duplicates().reset_index().to_csv('data/PBTA/raw/id_gene.txt', sep='\t', header=False, index=False)
 df.transcript_id.to_csv('data/PBTA/raw/id_transcript.txt', sep='\t', header=False)
 samples = pd.DataFrame({'sample_id': df.columns.to_numpy()[2:]})
 samples.to_csv('data/PBTA/raw/id_sample.txt', sep='\t', header=False)
