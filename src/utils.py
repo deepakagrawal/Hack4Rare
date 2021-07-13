@@ -64,7 +64,7 @@ class pbta2vec(InMemoryDataset):
         if self.data.edge_attr is None:
             return 0
         if isinstance(self.data.edge_attr[0], dict):
-            return {key: val.shape[1] for (key, val) in self.data.edge_attr[0].items()}
+            return {key: val.shape[1] for (key, val) in self.data.edge_weight[0].items()}
         else:
             return self.data.edge_attr.size(1)
 
@@ -93,6 +93,9 @@ class pbta2vec(InMemoryDataset):
         sample_transcript_index, sample_transcript_attr = coalesce(sample_transcript[:-1,:].long(), sample_transcript[-1,:], M, N)
         transcript_sample_index, transcript_sample_attr = transpose(sample_transcript_index, sample_transcript_attr, M, N)
 
+        sample_transcript_attr = sample_transcript_attr.reshape([-1, 1])
+        transcript_sample_attr = transcript_sample_attr.reshape([-1,1])
+
         # Get transcript<->gene connectivity.
         path = osp.join(self.raw_dir, 'transcript_gene.txt')
         transcript_gene = pandas.read_csv(path, sep='\t', header=None)
@@ -105,13 +108,13 @@ class pbta2vec(InMemoryDataset):
         data = Data(
             edge_index_dict={
                 ('gene', 'from', 'transcript'): gene_transcript,
-                ('transcript', 'of', 'gene'): transcript_gene,
-                ('sample', 'of', 'transcript'): sample_transcript_index,
                 ('transcript', 'from', 'sample'): transcript_sample_index,
+                ('sample', 'of', 'transcript'): sample_transcript_index,
+                ('transcript', 'of', 'gene'): transcript_gene,
             },
-            edge_attr={
-                ('sample', 'of', 'transcript'): cat([sample_transcript_attr]),
-                ('transcript', 'from', 'sample'): cat([transcript_sample_attr]),
+            edge_weight={
+                ('sample', 'of', 'transcript'): sample_transcript_attr,
+                ('transcript', 'from', 'sample'): transcript_sample_attr,
             },
             # node_dict={
             #     'gene': torch.from_numpy(gene['name'].values),

@@ -3,7 +3,8 @@ from torch.nn import Embedding
 from torch.utils.data import DataLoader
 from torch_sparse import SparseTensor
 from sklearn.linear_model import LogisticRegression
-
+from sklearn.preprocessing import StandardScaler
+import time
 EPS = 1e-15
 
 
@@ -41,7 +42,7 @@ class MetaGene2Vec(torch.nn.Module):
         sparse (bool, optional): If set to :obj:`True`, gradients w.r.t. to the
             weight matrix will be sparse. (default: :obj:`False`)
     """
-    def __init__(self, edge_index_dict, embedding_dim, metapath, walk_length,
+    def __init__(self, edge_index_dict, edge_attr_dict, embedding_dim, metapath, walk_length,
                  context_size, walks_per_node=1, num_negative_samples=1,
                  num_nodes_dict=None, sparse=False):
         super(MetaGene2Vec, self).__init__()
@@ -61,7 +62,10 @@ class MetaGene2Vec(torch.nn.Module):
         for keys, edge_index in edge_index_dict.items():
             sizes = (num_nodes_dict[keys[0]], num_nodes_dict[keys[-1]])
             row, col = edge_index
-            adj = SparseTensor(row=row, col=col, sparse_sizes=sizes)
+            if edge_attr_dict is not None and keys in edge_attr_dict.keys():
+                adj = SparseTensor(row=row, col=col, value=edge_attr_dict[keys].squeeze(), sparse_sizes=sizes)
+            else:
+                adj = SparseTensor(row=row, col=col, sparse_sizes=sizes)
             adj = adj.to('cpu')
             adj_dict[keys] = adj
 
@@ -187,11 +191,14 @@ class MetaGene2Vec(torch.nn.Module):
              multi_class='auto', *args, **kwargs):
         r"""Evaluates latent space quality via a logistic regression downstream
         task."""
+        scalar = StandardScaler()
+        train_z_std = scalar.fit_transform(train_z.detach().cpu().numpy())
+        test_z_std = scalar.transform(test_z.detach().cpu().numpy())
         clf = LogisticRegression(solver=solver, multi_class=multi_class, *args,
-                                 **kwargs).fit(train_z.detach().cpu().numpy(),
+                                 **kwargs).fit(train_z_std,
                                                train_y.detach().cpu().numpy())
-        return clf.score(test_z.detach().cpu().numpy(),
-                         test_y.detach().cpu().numpy())
+        print(clf.score(train_z_std, train_y.detach().cpu().numpy()))
+        return clf.score(test_z_std, test_y.detach().cpu().numpy())
 
     def __repr__(self):
         return '{}({}, {})'.format(self.__class__.__name__,
