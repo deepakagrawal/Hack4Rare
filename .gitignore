@@ -26,3 +26,17 @@
 /data/PBTA/processed/pre_filter.pt
 /data/PBTA/processed/pre_transform.pt
 /src/metapath2vec.py
+/data/auth_embedding.tsv
+/data/auth_embedding.txt
+/data/auth_metadata.csv
+/data/auth_metadata.tsv
+/data/gene_embedding.tsv
+/data/gene_metadata.tsv
+/data/metadata-edited.tsv
+/data/out.csv
+/data/pbta-gene-expression-kallisto.stranded.rds
+/data/src.pt
+/data/subset.pt
+/data/temp.pt
+/data/test.parquet
+/data/weighted_sample.prof
