@@ -5,8 +5,6 @@ import torch
 from src.utils import pbta2vec
 from src.metagene2vec import MetaGene2Vec
 from pathlib import Path
-import torch_geometric.transforms as T
-# from torch_geometric.nn import MetaPath2Vec
 
 # load the dataset
 path = osp.join('data', 'PBTA')
@@ -31,13 +29,13 @@ metapath = [
 ]
 
 model = MetaGene2Vec(data.edge_index_dict,
-                     None,
-                     embedding_dim=50,
+                     data.edge_weight,
+                     embedding_dim=100,
                      metapath=metapath,
-                     walk_length=50,
-                     context_size=10,
+                     walk_length=10,
+                     context_size=5,
                      walks_per_node=5,
-                     num_negative_samples=5,
+                     num_negative_samples=10,
                      sparse=True
                     ).to(device)
 
@@ -95,15 +93,15 @@ def test(train_ratio=0.6):
                       y[test_perm], max_iter=100, n_jobs=-1)
 
 
-for epoch in range(0):
+for epoch in range(10):
     train(epoch)
     # acc = test(0.1)
     # print(f'Epoch: {epoch}, Accuracy: {acc:.8f}')
 
 
-# torch.save({'epoch': epoch,
-#             'model_state_dict': model.state_dict(),
-#             'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
+torch.save({'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
 
 checkpoint = torch.load(MODEL_PATH)
 model.load_state_dict(checkpoint['model_state_dict'])
@@ -117,8 +115,6 @@ def get_embedding_metadata(node_type: str):
     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
     np.savetxt(f'data/PBTA/unweighted_{node_type}_embedding.tsv', z, delimiter='\t')
     df = pd.read_csv(f'data/PBTA/raw/id_{node_type}.txt', names=['id', 'label'], sep='\t')
-    # df = pd.DataFrame({'id': data.node_index_dict[node_type].numpy()})
-    # df['label'] = 'dummy_label'
     df.to_csv(f'data/PBTA/unweighted_{node_type}_metadata.tsv', index=None, sep='\t')
 
 
