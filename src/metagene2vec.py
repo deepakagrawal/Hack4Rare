@@ -121,11 +121,14 @@ class MetaGene2Vec(torch.nn.Module):
         batch = batch.repeat(self.walks_per_node)
 
         rws = [batch]
+        st = time.time()
         for i in range(self.walk_length):
+
             keys = self.metapath[i % len(self.metapath)]
             adj = self.adj_dict[keys]
             batch = adj.sample(num_neighbors=1, subset=batch).squeeze()
             rws.append(batch)
+        print(time.time() - st)
 
         rw = torch.stack(rws, dim=-1)
         rw.add_(self.offset.view(1, -1))

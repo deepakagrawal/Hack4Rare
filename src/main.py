@@ -39,7 +39,7 @@ model = MetaGene2Vec(data.edge_index_dict,
                      sparse=True
                     ).to(device)
 
-loader = model.loader(batch_size=160, shuffle=True, num_workers=0)
+loader = model.loader(batch_size=160, shuffle=True, num_workers=2)
 
 for idx, (pos_rw, neg_rw) in enumerate(loader):
     if idx == 10: break
@@ -93,35 +93,35 @@ def test(train_ratio=0.6):
                       y[test_perm], max_iter=100, n_jobs=-1)
 
 
-for epoch in range(10):
+for epoch in range(0):
     train(epoch)
     # acc = test(0.1)
     # print(f'Epoch: {epoch}, Accuracy: {acc:.8f}')
 
 
-torch.save({'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
-
-checkpoint = torch.load(MODEL_PATH)
-model.load_state_dict(checkpoint['model_state_dict'])
-model.cpu()
-
-
-### generate checkpoint for tensorboard visualization
-
-
-def get_embedding_metadata(node_type: str):
-    z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
-    np.savetxt(f'data/PBTA/unweighted_{node_type}_embedding.tsv', z, delimiter='\t')
-    df = pd.read_csv(f'data/PBTA/raw/id_{node_type}.txt', names=['id', 'label'], sep='\t')
-    df.to_csv(f'data/PBTA/unweighted_{node_type}_metadata.tsv', index=None, sep='\t')
-
-
-
-get_embedding_metadata('transcript')
-get_embedding_metadata('gene')
-
+# torch.save({'epoch': epoch,
+#             'model_state_dict': model.state_dict(),
+#             'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
+#
+# checkpoint = torch.load(MODEL_PATH)
+# model.load_state_dict(checkpoint['model_state_dict'])
+# model.cpu()
+#
+#
+# ### generate checkpoint for tensorboard visualization
+#
+#
+# def get_embedding_metadata(node_type: str):
+#     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
+#     np.savetxt(f'data/PBTA/unweighted_{node_type}_embedding.tsv', z, delimiter='\t')
+#     df = pd.read_csv(f'data/PBTA/raw/id_{node_type}.txt', names=['id', 'label'], sep='\t')
+#     df.to_csv(f'data/PBTA/unweighted_{node_type}_metadata.tsv', index=None, sep='\t')
+#
+#
+#
+# get_embedding_metadata('transcript')
+# get_embedding_metadata('gene')
+#
 
 
 
