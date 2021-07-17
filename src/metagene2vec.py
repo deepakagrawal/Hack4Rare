@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 from torch_sparse import SparseTensor
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from src.sample import sample
 import time
 EPS = 1e-15
 
@@ -127,7 +128,7 @@ class MetaGene2Vec(torch.nn.Module):
 
             keys = self.metapath[i % len(self.metapath)]
             adj = self.adj_dict[keys]
-            batch = adj.sample(num_neighbors=1, subset=batch).squeeze()
+            batch = sample(adj, num_neighbors=1, subset=batch).squeeze()
             rws.append(batch)
         # print(time.time() - st)
 

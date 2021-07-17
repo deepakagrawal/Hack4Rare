@@ -5,59 +5,21 @@ import torch
 from src.utils import pbta2vec
 from src.metagene2vec import MetaGene2Vec
 from pathlib import Path
-
-# load the dataset
-path = osp.join('data', 'PBTA')
-MODEL_PATH = 'data/PBTA/torch_model_wt_v1'
-dataset = pbta2vec(path)
-data = dataset[0]
-
-print(type(data.edge_index_dict))
-print(data.edge_index_dict[('gene', 'from', 'transcript')].shape)
-
-print(type(data.num_nodes_dict))
-print(data.num_nodes_dict)
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-# device = "cpu"
-
-metapath = [
-    ('gene', 'from', 'transcript'),
-    ('transcript', 'from', 'sample'),
-    ('sample', 'of', 'transcript'),
-    ('transcript', 'of', 'gene')
-]
-
-model = MetaGene2Vec(data.edge_index_dict,
-                     # None,
-                     data.edge_weight,
-                     embedding_dim=64,
-                     metapath=metapath,
-                     walk_length=25,
-                     context_size=7,
-                     walks_per_node=25,
-                     num_negative_samples=5,
-                     sparse=True
-                    ).to(device)
-
-loader = model.loader(batch_size=50, shuffle=True, num_workers=0)
-
-for idx, (pos_rw, neg_rw) in enumerate(loader):
-    if idx == 10: break
-    print(idx, pos_rw.shape, neg_rw.shape)
-
-print(pos_rw[0],neg_rw[0])
-
-optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=0.01)
+from tqdm import tqdm
+import argparse
+import logging
 
 
-if Path(MODEL_PATH).exists():
-    checkpoint = torch.load(MODEL_PATH)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+def data_processing(path):
+    # load the dataset
+    # MODEL_PATH = 'data/PBTA/torch_model_wt_v1'
+    dataset = pbta2vec(path)
+    data = dataset[0]
+    return data
 
 
 def train(epoch, log_steps=500, eval_steps=1000):
+    "Function to training node embedding"
     model.train()
 
     total_loss = 0
@@ -94,36 +56,95 @@ def test(train_ratio=0.6):
                       y[test_perm], max_iter=100, n_jobs=-1)
 
 
-for epoch in range(10):
-    train(epoch)
+
+def get_embedding_metadata(node_type: str, path: str, embed_file, meta_file, id_file):
+    "Get node embeddings and metadata files"
+    z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
+    np.savetxt(osp.join(path, node_type + embed_file), z, delimiter='\t')
+    # f'data/PBTA/raw/id_{node_type}.txt'
+    df = pd.read_csv(osp.join(path, id_file), names=['id', 'label'], sep='\t')
+    df.to_csv(osp.join(path, node_type + meta_file), index=None, sep='\t')
+
+
+
+if __name__ == "__main__":
+
+    logger = logging.getLogger("PBTAapp_logger")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--modelpath", help="File name of the pytorch model", default="torch_model.pt")
+    parser.add_argument("--embed", help="File name of the all embedding file", default="weighted_embedding_v1.tsv")
+    parser.add_argument("--meta", help="File name of the all metada file", default="weighted_metadata_v1.tsv")
+    parser.add_argument("--use_weight", help="Enable weighted metapath2vec", default=False, action="store_true")
+    parser.add_argument("--output", help="Path of the output directory", default="data/PBTA/")
+    parser.add_argument("-e", "--epoch", help="Number of epochs for training", default=0, type=int)
+    parser.add_argument("-b", "--batch", help="number of samples in each batch", default=64, type=int)
+    parser.add_argument("--embed_dim", help="Node Embedding dimension", default=64, type=int)
+    args = parser.parse_args()
+
+    MODEL_PATH = osp.join(args.output, args.modelpath)
+    
+    logger.info("Load PBTA kallisto dataset and save preprocessed data")
+    data = data_processing(args.output)
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    logger.info(f"Device used for model training: {device}")
+
+    metapath = [
+        ('gene', 'from', 'transcript'),
+        ('transcript', 'from', 'sample'),
+        ('sample', 'of', 'transcript'),
+        ('transcript', 'of', 'gene')
+    ]
+
+    logger.info(f"Metapath for the project: {metapath}")
+
+    logger.info("Initialize Pytorch Model")
+    model = MetaGene2Vec(data.edge_index_dict,
+                        data.edge_weight if args.use_weight else None,
+                        embedding_dim=args.embed_dim,
+                        metapath=metapath,
+                        walk_length=20,
+                        context_size=5,
+                        walks_per_node=25,
+                        num_negative_samples=5,
+                        sparse=True
+                        ).to(device)
+
+    loader = model.loader(batch_size=args.batch, shuffle=True, num_workers=0)
+
+    logger.info("Show some positive and negative samples")
+    for idx, (pos_rw, neg_rw) in enumerate(loader):
+        if idx == 10: break
+        print(idx, pos_rw.shape, neg_rw.shape)
+        print(pos_rw[0],neg_rw[0])
+
+    logger.info("initialize SparseAdam optimizer")
+    optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=0.01)
+
+    
+    if Path(MODEL_PATH).exists():
+        logger.info("Loading exisiting model")
+        checkpoint = torch.load(MODEL_PATH)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+
+    logger.info("Start model training")
+    for epoch in tqdm(range(args.epoch)):
+        train(epoch)
+        logger.info(f"Saving model checkpoint for epoch: {epoch}")
+        torch.save({'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
+
     # acc = test(0.1)
     # print(f'Epoch: {epoch}, Accuracy: {acc:.8f}')
 
+    logger.info("Load saved model")
+    checkpoint = torch.load(MODEL_PATH)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.cpu()
 
-torch.save({'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
-
-checkpoint = torch.load(MODEL_PATH)
-model.load_state_dict(checkpoint['model_state_dict'])
-model.cpu()
-
-
-### generate checkpoint for tensorboard visualization
-
-
-def get_embedding_metadata(node_type: str):
-    z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
-    np.savetxt(f'data/PBTA/weighted_{node_type}_embedding_v1.tsv', z, delimiter='\t')
-    df = pd.read_csv(f'data/PBTA/raw/id_{node_type}.txt', names=['id', 'label'], sep='\t')
-    df.to_csv(f'data/PBTA/weighted_{node_type}_metadata_v1.tsv', index=None, sep='\t')
-
-
-
-get_embedding_metadata('transcript')
-get_embedding_metadata('gene')
-
-
-
-
-# get_embedding_metadata('sample')
+    logger.info("Getting node embedding from saved model")
+    get_embedding_metadata('transcript', args.output, args.embed, args.meta, 'id_transcript.txt')
+    get_embedding_metadata('gene', args.output, args.embed, args.meta, 'id_gene.txt' )

@@ -1,21 +1,42 @@
+from dateutil.parser import parse
 import pyreadr
 import pandas as pd
 import numpy as np
+import argparse
+import os.path as osp
+from pathlib import Path
+import logging
 
 
-df: pd.DataFrame = pyreadr.read_r("data/pbta-gene-expression-kallisto.stranded.rds")[None]
+parser = argparse.ArgumentParser()
+parser.add_argument("--input", help="Path of the kallisto rds file", default="data/pbta-gene-expression-kallisto.stranded.rds")
+parser.add_argument("--output", help="path of the output location where raw files will be stored", default="data/PBTA/raw/", type=Path)
+parser.add_argument("'--gene_id", help="filename of the id_gene file", default="id_gene.txt")
+parser.add_argument("'--transcript_id", help="filename of the id_transcript file", default="id_transcript.txt")
+parser.add_argument("'--sample_id", help="filename of the id_sample file", default="id_sample.txt")
+parser.add_argument("--sample_transcript", help="filename of the sample_transcript file", default="sample_transcript.parquet")
+parser.add_argument("--transcript_gene", help="filename of the transcript_gene file", default="transcript_gene.txt")
+args = parser.parse_args()
+
+logger = logging.getLogger("OpenPBTA_PreProcessor")
+
+
+logger.info("Read input rds data")
+df: pd.DataFrame = pyreadr.read_r(args.input)[None]
 df['wt_sum'] = df[df.columns[2:]].sum(axis=1)
 df = df[df.wt_sum >= 1e-3]
 # df = df.head(10000)
-df.gene_id.drop_duplicates().reset_index().to_csv('data/PBTA/raw/id_gene.txt', sep='\t', header=False, index=False)
-df.transcript_id.drop_duplicates().to_csv('data/PBTA/raw/id_transcript.txt', sep='\t', header=False)
-samples = pd.DataFrame({'sample_id': df.columns.to_numpy()[2:]})
-samples.to_csv('data/PBTA/raw/id_sample.txt', sep='\t', header=False)
-samples = pd.read_csv('data/PBTA/raw/id_sample.txt', sep='\t', names=['id', 'sample_id'])
 
-print("Start writing sample_transcript.parquet")
+logger.info("Save node_ids")
+df.gene_id.drop_duplicates().reset_index().to_csv(args.output / args.gene_id, sep='\t', header=False, index=False)
+df.transcript_id.drop_duplicates().to_csv(args.output / args.transcript_id, sep='\t', header=False)
+samples = pd.DataFrame({'sample_id': df.columns.to_numpy()[2:]})
+samples.to_csv(args.output / args.sample_id, sep='\t', header=False)
+samples = pd.read_csv(args.output / args.sample_id, sep='\t', names=['id', 'sample_id'])
+
+logger.info("Start writing sample_transcript.parquet")
 df_transcript_sample = df.drop(columns=['gene_id', 'wt_sum'])
-transcripts = pd.read_csv('data/PBTA/raw/id_transcript.txt', sep='\t', names=['id', 'transcript_id'])
+transcripts = pd.read_csv(args.output / args.transcript_id, sep='\t', names=['id', 'transcript_id'])
 df_transcript_sample = df_transcript_sample.merge(transcripts, on=['transcript_id'])
 df_transcript_sample.drop(columns='transcript_id', inplace=True)
 df_transcript_sample.rename(columns={'id': 'transcript_id'}, inplace=True)
@@ -26,20 +47,20 @@ df_transcript_sample = df_transcript_sample.stack().reset_index()
 df_transcript_sample.rename(columns={'level_1': 'sample_id', 0: 'weight'}, inplace=True)
 df_transcript_sample.dropna(how='any', inplace=True)
 df_transcript_sample = df_transcript_sample[df_transcript_sample.weight > 1e-4]
-df_transcript_sample[['sample_id', 'transcript_id', 'weight']].to_parquet('data/PBTA/raw/sample_transcript.parquet', index=None)
-print("finished writing sample_transcript.parquet")
+df_transcript_sample[['sample_id', 'transcript_id', 'weight']].to_parquet(args.output / args.sample_transcript, index=None)
+logger.info("finished writing sample_transcript.parquet")
 
-print("Start writing transcript_gene.txt")
+logger.info("Start writing transcript_gene.txt")
 df_transcript_gene = df[['transcript_id', 'gene_id']]
-transcripts = pd.read_csv('data/PBTA/raw/id_transcript.txt', sep='\t', names=['id', 'transcript_id'])
+transcripts = pd.read_csv(args.output / args.transcript_id, sep='\t', names=['id', 'transcript_id'])
 df_transcript_gene = df_transcript_gene.merge(transcripts, on=['transcript_id'])
 df_transcript_gene.drop(columns='transcript_id', inplace=True)
 df_transcript_gene.rename(columns={'id': 'transcript_id'}, inplace=True)
-gene = pd.read_csv('data/PBTA/raw/id_gene.txt', sep='\t', names=['id', 'gene_id'])
+gene = pd.read_csv(args.output / args.gene_id, sep='\t', names=['id', 'gene_id'])
 df_transcript_gene = df_transcript_gene.merge(gene, on=['gene_id'])
 df_transcript_gene.drop(columns='gene_id', inplace=True)
 df_transcript_gene.rename(columns={'id': 'gene_id'}, inplace=True)
-df_transcript_gene[['transcript_id', 'gene_id']].to_csv('data/PBTA/raw/transcript_gene.txt', sep='\t', header=False, index=False)
-print("finished writing transcript_gene.txt")
+df_transcript_gene[['transcript_id', 'gene_id']].to_csv(args.output / args.transcript_gene, sep='\t', header=False, index=False)
+logger.info("finished writing transcript_gene.txt")
 
 
