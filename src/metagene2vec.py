@@ -64,9 +64,10 @@ class MetaGene2Vec(torch.nn.Module):
             row, col = edge_index
             if edge_attr_dict is not None and keys in edge_attr_dict.keys():
                 adj = SparseTensor(row=row, col=col, value=edge_attr_dict[keys].squeeze(), sparse_sizes=sizes)
+                adj = adj.to('cpu') if keys == ('transcript', 'from', 'sample') else adj.to('cuda')
             else:
                 adj = SparseTensor(row=row, col=col, sparse_sizes=sizes)
-            adj = adj.to('cpu')
+                adj = adj.to('cpu')
             adj_dict[keys] = adj
 
         assert metapath[0][0] == metapath[-1][-1]
@@ -121,14 +122,14 @@ class MetaGene2Vec(torch.nn.Module):
         batch = batch.repeat(self.walks_per_node)
 
         rws = [batch]
-        st = time.time()
+        # st = time.time()
         for i in range(self.walk_length):
 
             keys = self.metapath[i % len(self.metapath)]
             adj = self.adj_dict[keys]
             batch = adj.sample(num_neighbors=1, subset=batch).squeeze()
             rws.append(batch)
-        print(time.time() - st)
+        # print(time.time() - st)
 
         rw = torch.stack(rws, dim=-1)
         rw.add_(self.offset.view(1, -1))

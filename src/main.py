@@ -8,7 +8,7 @@ from pathlib import Path
 
 # load the dataset
 path = osp.join('data', 'PBTA')
-MODEL_PATH = 'data/PBTA/torch_model_wt'
+MODEL_PATH = 'data/PBTA/torch_model_wt_v1'
 dataset = pbta2vec(path)
 data = dataset[0]
 
@@ -29,17 +29,18 @@ metapath = [
 ]
 
 model = MetaGene2Vec(data.edge_index_dict,
+                     # None,
                      data.edge_weight,
-                     embedding_dim=100,
+                     embedding_dim=64,
                      metapath=metapath,
-                     walk_length=10,
-                     context_size=5,
-                     walks_per_node=5,
-                     num_negative_samples=10,
+                     walk_length=25,
+                     context_size=7,
+                     walks_per_node=25,
+                     num_negative_samples=5,
                      sparse=True
                     ).to(device)
 
-loader = model.loader(batch_size=160, shuffle=True, num_workers=2)
+loader = model.loader(batch_size=50, shuffle=True, num_workers=0)
 
 for idx, (pos_rw, neg_rw) in enumerate(loader):
     if idx == 10: break
@@ -93,35 +94,35 @@ def test(train_ratio=0.6):
                       y[test_perm], max_iter=100, n_jobs=-1)
 
 
-for epoch in range(0):
+for epoch in range(10):
     train(epoch)
     # acc = test(0.1)
     # print(f'Epoch: {epoch}, Accuracy: {acc:.8f}')
 
 
-# torch.save({'epoch': epoch,
-#             'model_state_dict': model.state_dict(),
-#             'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
-#
-# checkpoint = torch.load(MODEL_PATH)
-# model.load_state_dict(checkpoint['model_state_dict'])
-# model.cpu()
-#
-#
-# ### generate checkpoint for tensorboard visualization
-#
-#
-# def get_embedding_metadata(node_type: str):
-#     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
-#     np.savetxt(f'data/PBTA/unweighted_{node_type}_embedding.tsv', z, delimiter='\t')
-#     df = pd.read_csv(f'data/PBTA/raw/id_{node_type}.txt', names=['id', 'label'], sep='\t')
-#     df.to_csv(f'data/PBTA/unweighted_{node_type}_metadata.tsv', index=None, sep='\t')
-#
-#
-#
-# get_embedding_metadata('transcript')
-# get_embedding_metadata('gene')
-#
+torch.save({'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
+
+checkpoint = torch.load(MODEL_PATH)
+model.load_state_dict(checkpoint['model_state_dict'])
+model.cpu()
+
+
+### generate checkpoint for tensorboard visualization
+
+
+def get_embedding_metadata(node_type: str):
+    z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
+    np.savetxt(f'data/PBTA/weighted_{node_type}_embedding_v1.tsv', z, delimiter='\t')
+    df = pd.read_csv(f'data/PBTA/raw/id_{node_type}.txt', names=['id', 'label'], sep='\t')
+    df.to_csv(f'data/PBTA/weighted_{node_type}_metadata_v1.tsv', index=None, sep='\t')
+
+
+
+get_embedding_metadata('transcript')
+get_embedding_metadata('gene')
+
 
 
 

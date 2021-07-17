@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import numba
+import torch_sparse
 
 @numba.jit(fastmath=True)
 def numba_sum(a):
