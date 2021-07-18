@@ -42,7 +42,7 @@ def train(epoch, log_steps=500, eval_steps=1000):
 
 
 @torch.no_grad()
-def test(train_ratio=0.1):
+def test(train_ratio=0.6):
     model.eval()
 
     z = model('sample', batch=data.node_index_dict['sample'])
@@ -134,13 +134,13 @@ if __name__ == "__main__":
         checkpoint = torch.load(MODEL_PATH)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        acc = test(0.1)
+        acc = test()
         logger.info(f'Epoch: {args.epoch}, Accuracy: {acc:.8f}')
 
     logger.info("Start model training")
     for epoch in tqdm(range(args.epoch)):
         train(epoch)
-        acc = test(0.6)
+        acc = test()
         logger.info(f'Epoch: {epoch}, Accuracy: {acc:.8f}')
         logger.info(f"Saving model checkpoint for epoch: {epoch}")
         torch.save({'epoch': epoch,
