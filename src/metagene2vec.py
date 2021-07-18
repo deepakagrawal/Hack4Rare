@@ -195,13 +195,13 @@ class MetaGene2Vec(torch.nn.Module):
              multi_class='auto', *args, **kwargs):
         r"""Evaluates latent space quality via a logistic regression downstream
         task."""
-        scalar = StandardScaler()
-        train_z_std = scalar.fit_transform(train_z.detach().cpu().numpy())
-        test_z_std = scalar.transform(test_z.detach().cpu().numpy())
+        train_z = train_z.detach().cpu().numpy()
+        train_y = train_y.detach().cpu().numpy()
+        test_z = test_z.detach().cpu().numpy()
+        test_y = test_y.detach().cpu().numpy()
         clf = LogisticRegression(solver=solver, multi_class=multi_class, *args,
-                                 **kwargs).fit(train_z_std,
-                                               train_y.detach().cpu().numpy())
-        return clf.score(test_z_std, test_y.detach().cpu().numpy())
+                                 **kwargs).fit(train_z, train_y)
+        return clf.score(train_z, train_y), clf.score(test_z, test_y)
 
     def __repr__(self):
         return '{}({}, {})'.format(self.__class__.__name__,

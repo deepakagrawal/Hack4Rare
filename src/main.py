@@ -8,6 +8,10 @@ from pathlib import Path
 from tqdm import tqdm
 import argparse
 import logging
+import tensorflow as tf
+import tensorboard as tb
+tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
+from torch.utils.tensorboard import SummaryWriter
 
 
 def data_processing(path):
@@ -18,11 +22,12 @@ def data_processing(path):
     return data
 
 
-def train(epoch, log_steps=500, eval_steps=1000):
+def train(epoch, log_steps=500, eval_steps=1000, writer=None):
     "Function to training node embedding"
     model.train()
 
     total_loss = 0
+    batch_loss = 0
     for i, (pos_rw, neg_rw) in enumerate(loader):
         optimizer.zero_grad()
         loss = model.loss(pos_rw.to(device), neg_rw.to(device))
@@ -30,19 +35,24 @@ def train(epoch, log_steps=500, eval_steps=1000):
         optimizer.step()
 
         total_loss += loss.item()
+        batch_loss += loss.item()
         if (i + 1) % log_steps == 0:
             print((f'Epoch: {epoch}, Step: {i + 1:05d}/{len(loader)}, '
-                   f'Loss: {total_loss / log_steps:.4f}'))
-            total_loss = 0
+                   f'Loss: {batch_loss / log_steps:.4f}'))
+            batch_loss = 0
+            # total_loss = 0
 
         if (i + 1) % eval_steps == 0:
-            acc = test()
+            _, acc = test()
             print((f'Epoch: {epoch}, Step: {i + 1:05d}/{len(loader)}, '
                    f'Acc: {acc:.4f}'))
 
+    return total_loss/len(loader)
+
+
 
 @torch.no_grad()
-def test(train_ratio=0.6):
+def test(train_ratio=0.1):
     model.eval()
 
     z = model('sample', batch=data.node_index_dict['sample'])
@@ -56,13 +66,10 @@ def test(train_ratio=0.6):
                       y[test_perm], max_iter=100, n_jobs=-1)
 
 
-def get_embedding_metadata(node_type: str, path: str, embed_file, meta_file, id_file):
+def get_embedding_metadata(node_type: str, path: str, embed_file):
     "Get node embeddings and metadata files"
     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
     np.savetxt(osp.join(path, node_type + embed_file), z, delimiter='\t')
-    # f'data/PBTA/raw/id_{node_type}.txt'
-    df = pd.read_csv(osp.join(path, 'raw', id_file), names=['id', 'label'], sep='\t', header=None)
-    df.to_csv(osp.join(path, node_type + meta_file), index=None, sep='\t')
 
 
 if __name__ == "__main__":
@@ -88,6 +95,7 @@ if __name__ == "__main__":
     logger.addHandler(consoleHandler)
 
     MODEL_PATH = osp.join(args.output, args.modelpath)
+    writer = SummaryWriter(f"runs/{Path(args.modelpath).stem}")
 
     logger.info("Load PBTA kallisto dataset and save preprocessed data")
     data = data_processing(args.output)
@@ -130,23 +138,32 @@ if __name__ == "__main__":
     optimizer = torch.optim.SparseAdam(list(model.parameters()), lr=0.01)
 
     if Path(MODEL_PATH).exists():
+        if args.epoch <= 0:
+            logger.info("Running in Evaluation Mode")
         logger.info("Loading exisiting model")
         checkpoint = torch.load(MODEL_PATH)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        acc = test()
+        _, acc = test()
         logger.info(f'Epoch: {args.epoch}, Accuracy: {acc:.8f}')
+    else:
+        logger.info("Running in Training Mode")
 
     logger.info("Start model training")
     for epoch in tqdm(range(args.epoch)):
-        train(epoch)
-        acc = test()
-        logger.info(f'Epoch: {epoch}, Accuracy: {acc:.8f}')
+        total_loss = train(epoch, writer=writer)
+        train_acc, test_acc = test()
+        writer.add_scalar('training_loss', total_loss, epoch)
+        writer.add_scalar('Accuracy/test', test_acc, epoch)
+        writer.add_scalar('Accuracy/train', train_acc, epoch)
+        logger.info(f'Epoch: {epoch}, Accuracy: {test_acc:.8f}')
         logger.info(f"Saving model checkpoint for epoch: {epoch}")
         torch.save({'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
-
+        for node_type in data.num_nodes_dict.keys():
+            embeddings = model(node_type, batch=data.node_index_dict[node_type]).detach().cpu().numpy()
+            writer.add_histogram(f'Embeddings/{node_type}', embeddings + epoch, epoch)
 
     logger.info("Load saved model")
     checkpoint = torch.load(MODEL_PATH)
@@ -154,6 +171,8 @@ if __name__ == "__main__":
     model.cpu()
 
     logger.info("Getting node embedding from saved model")
-    get_embedding_metadata('transcript', args.output, args.embed, args.meta, 'id_transcript.txt')
-    get_embedding_metadata('gene', args.output, args.embed, args.meta, 'id_gene.txt')
-    get_embedding_metadata('sample', args.output, args.embed, args.meta, 'id_sample.txt')
+    get_embedding_metadata('transcript', args.output, args.embed)
+    get_embedding_metadata('gene', args.output, args.embed)
+    get_embedding_metadata('sample', args.output, args.embed)
+    if writer is not None:
+        writer.close()
