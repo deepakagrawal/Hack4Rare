@@ -6,6 +6,7 @@ import pandas
 from torch_sparse import coalesce, transpose
 from torch_geometric.data import (InMemoryDataset, Data, download_url,
                                   extract_zip, Dataset)
+from sklearn import preprocessing
 
 
 class pbta2vec(InMemoryDataset):
@@ -74,7 +75,8 @@ class pbta2vec(InMemoryDataset):
     def process(self):
         # Get sample labels.
         path = osp.join(self.raw_dir, 'id_sample.txt')
-        sample = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
+        sample = pandas.read_csv(path, sep='\t', index_col=1)
+        sample.rename(columns={'id': 'idx'}, inplace=True)
 
         # Get gene labels.
         path = osp.join(self.raw_dir, 'id_gene.txt')
@@ -116,11 +118,11 @@ class pbta2vec(InMemoryDataset):
                 ('sample', 'of', 'transcript'): sample_transcript_attr,
                 ('transcript', 'from', 'sample'): transcript_sample_attr,
             },
-            # node_dict={
-            #     'gene': torch.from_numpy(gene['name'].values),
-            #     'sample': torch.from_numpy(sample['name'].values),
-            #     'transcript': torch.from_numpy(transcript['name'].values)
-            # },
+            node_dict={
+                # 'gene': torch.from_numpy(gene['name'].values),
+                'sample': torch.from_numpy(sample['short_hist_labels'].values),
+                # 'transcript': torch.from_numpy(transcript['name'].values)
+            },
             node_index_dict={
                 'gene': torch.from_numpy(gene['idx'].values),
                 'sample': torch.from_numpy(sample['idx'].values),

@@ -65,10 +65,9 @@ class MetaGene2Vec(torch.nn.Module):
             row, col = edge_index
             if edge_attr_dict is not None and keys in edge_attr_dict.keys():
                 adj = SparseTensor(row=row, col=col, value=edge_attr_dict[keys].squeeze(), sparse_sizes=sizes)
-                adj = adj.to('cpu') if keys == ('transcript', 'from', 'sample') else adj.to('cuda')
             else:
                 adj = SparseTensor(row=row, col=col, sparse_sizes=sizes)
-                adj = adj.to('cpu')
+            adj = adj.to('cpu')
             adj_dict[keys] = adj
 
         assert metapath[0][0] == metapath[-1][-1]
@@ -202,7 +201,6 @@ class MetaGene2Vec(torch.nn.Module):
         clf = LogisticRegression(solver=solver, multi_class=multi_class, *args,
                                  **kwargs).fit(train_z_std,
                                                train_y.detach().cpu().numpy())
-        print(clf.score(train_z_std, train_y.detach().cpu().numpy()))
         return clf.score(test_z_std, test_y.detach().cpu().numpy())
 
     def __repr__(self):

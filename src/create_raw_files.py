@@ -6,19 +6,30 @@ import argparse
 import os.path as osp
 from pathlib import Path
 import logging
+from sklearn import preprocessing
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input", help="Path of the kallisto rds file", default="data/pbta-gene-expression-kallisto.stranded.rds")
 parser.add_argument("--output", help="path of the output location where raw files will be stored", default="data/PBTA/raw/", type=Path)
-parser.add_argument("'--gene_id", help="filename of the id_gene file", default="id_gene.txt")
-parser.add_argument("'--transcript_id", help="filename of the id_transcript file", default="id_transcript.txt")
-parser.add_argument("'--sample_id", help="filename of the id_sample file", default="id_sample.txt")
+parser.add_argument("--gene_id", help="filename of the id_gene file", default="id_gene.txt")
+parser.add_argument("--transcript_id", help="filename of the id_transcript file", default="id_transcript.txt")
+parser.add_argument("--sample_id", help="filename of the id_sample file", default="id_sample.txt")
 parser.add_argument("--sample_transcript", help="filename of the sample_transcript file", default="sample_transcript.parquet")
 parser.add_argument("--transcript_gene", help="filename of the transcript_gene file", default="transcript_gene.txt")
+parser.add_argument("--hist", help="histology filename", default="data/pbta-histologies.tsv")
 args = parser.parse_args()
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s',
+                    datefmt='%a, %d %b %Y %H:%M:%S', filename= 'data/metagene2vec.log',
+                    filemode='w')
+
+consoleHandler = logging.StreamHandler()
+
+
 logger = logging.getLogger("OpenPBTA_PreProcessor")
+logger.addHandler(consoleHandler)
+
 
 
 logger.info("Read input rds data")
@@ -27,12 +38,26 @@ df['wt_sum'] = df[df.columns[2:]].sum(axis=1)
 df = df[df.wt_sum >= 1e-3]
 # df = df.head(10000)
 
+logger.info("Read PBTA histology file")
+df_hist: pd.DataFrame = pd.read_csv(args.hist, sep="\t")
+
 logger.info("Save node_ids")
 df.gene_id.drop_duplicates().reset_index().to_csv(args.output / args.gene_id, sep='\t', header=False, index=False)
 df.transcript_id.drop_duplicates().to_csv(args.output / args.transcript_id, sep='\t', header=False)
-samples = pd.DataFrame({'sample_id': df.columns.to_numpy()[2:]})
-samples.to_csv(args.output / args.sample_id, sep='\t', header=False)
-samples = pd.read_csv(args.output / args.sample_id, sep='\t', names=['id', 'sample_id'])
+samples: pd.DataFrame = pd.DataFrame({'Kids_First_Biospecimen_ID': df.columns.to_numpy()[2:-1]})
+samples = samples.merge(df_hist, on=['Kids_First_Biospecimen_ID'], how='left')
+samples.drop(columns=['sample_id'], inplace=True)
+samples.reset_index(inplace=True)
+samples.rename(columns={'index': 'id', 'Kids_First_Biospecimen_ID': 'sample_id'}, inplace=True)
+broad_hist_label_encoder = preprocessing.LabelEncoder()
+samples['broad_hist_labels'] = broad_hist_label_encoder.fit_transform(samples.broad_histology)
+short_hist_label_encoder = preprocessing.LabelEncoder()
+samples['short_hist_labels'] = short_hist_label_encoder.fit_transform(samples.short_histology)
+samples.to_csv(args.output / args.sample_id, sep='\t', index=False)
+samples = pd.read_csv(args.output / args.sample_id, sep='\t', usecols=['id', 'sample_id'])
+
+
+
 
 logger.info("Start writing sample_transcript.parquet")
 df_transcript_sample = df.drop(columns=['gene_id', 'wt_sum'])
