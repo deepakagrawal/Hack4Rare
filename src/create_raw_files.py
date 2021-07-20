@@ -14,8 +14,10 @@ parser.add_argument("--output", help="path of the output location where raw file
 parser.add_argument("--gene_id", help="filename of the id_gene file", default="id_gene.txt")
 parser.add_argument("--transcript_id", help="filename of the id_transcript file", default="id_transcript.txt")
 parser.add_argument("--sample_id", help="filename of the id_sample file", default="id_sample.txt")
+parser.add_argument("--participant_id", help="filename of the id_participant file", default="id_participant.txt")
 parser.add_argument("--sample_transcript", help="filename of the sample_transcript file", default="sample_transcript.parquet")
 parser.add_argument("--transcript_gene", help="filename of the transcript_gene file", default="transcript_gene.txt")
+parser.add_argument("--sample_participant", help="filename of the sample_participant file", default="sample_participant.txt")
 parser.add_argument("--hist", help="histology filename", default="data/pbta-histologies.tsv")
 parser.add_argument("--chop_label", help="File path of samples having HGAT which are studied by CHOPS", default="data/PBTA/sample_in_chop_analysis.txt")
 args = parser.parse_args()
@@ -41,6 +43,7 @@ df = df[df.wt_sum >= 1e-3]
 logger.info("Read PBTA histology file")
 df_hist: pd.DataFrame = pd.read_csv(args.hist, sep="\t")
 
+
 logger.info("Save node_ids")
 df.gene_id.drop_duplicates().reset_index().to_csv(args.output / args.gene_id, sep='\t', header=False, index=False)
 df.transcript_id.drop_duplicates().to_csv(args.output / args.transcript_id, sep='\t', header=False)
@@ -57,7 +60,17 @@ samples["HGAT_chop_label"] = 0
 samples.loc[samples.sample_id.isin(chop_samples), "HGAT_chop_label"] = 1
 samples.to_csv(args.output / args.sample_id, sep='\t', index=False)
 samples = pd.read_csv(args.output / args.sample_id, sep='\t', usecols=['id', 'sample_id'])
+patients = df_hist['Kids_First_Participant_ID'].drop_duplicates().reset_index().rename(columns={'index':'id'})
+patients.to_csv(args.output / args.participant_id, sep='\t', index=False, header=False)
 
+
+logger.info('Start writing sample_patient.txt')
+sample_patient = df_hist.loc[df_hist['Kids_First_Biospecimen_ID'].isin(samples.sample_id),
+                             ['Kids_First_Biospecimen_ID', 'Kids_First_Participant_ID']]
+sample_patient.rename(columns={'Kids_First_Biospecimen_ID': 'sample_id'}, inplace=True)
+sample_patient = sample_patient.merge(samples, on='sample_id', how='inner').drop(columns="sample_id").rename(columns={'id': 'sample_id'})
+sample_patient = sample_patient.merge(patients, on='Kids_First_Participant_ID', how='inner').drop(columns="Kids_First_Participant_ID").rename(columns={'id': 'Kids_First_Participant_ID'})
+sample_patient.to_csv(args.output / args.sample_participant, index=False, header=False, sep='\t')
 
 
 

@@ -86,6 +86,20 @@ class pbta2vec(InMemoryDataset):
         path = osp.join(self.raw_dir, 'id_transcript.txt')
         transcript = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
 
+        # Get patient labels
+        path = osp.join(self.raw_dir, 'id_participant.txt')
+        patient = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
+
+        # Get sample <-> patient connectivity.
+        path = osp.join(self.raw_dir, 'sample_participant.txt')
+        sample_patient = pandas.read_csv(path, sep='\t', header=None)
+        sample_patient = torch.from_numpy(sample_patient.values)
+        sample_patient = sample_patient.t().contiguous()
+        M, N = int(sample_patient[0].max() + 1), int(sample_patient[1].max() + 1)
+        sample_patient, _ = coalesce(sample_patient, None, M, N)
+        patient_sample, _ = transpose(sample_patient, None, M, N)
+
+
         # Get sample<->transcript connectivity.
         path = osp.join(self.raw_dir, 'sample_transcript.parquet')
         sample_transcript = pandas.read_parquet(path)
@@ -113,6 +127,8 @@ class pbta2vec(InMemoryDataset):
                 ('transcript', 'from', 'sample'): transcript_sample_index,
                 ('sample', 'of', 'transcript'): sample_transcript_index,
                 ('transcript', 'of', 'gene'): transcript_gene,
+                ('sample', 'of', 'patient'): sample_patient,
+                ('patient', 'has', 'sample'): patient_sample
             },
             edge_weight={
                 ('sample', 'of', 'transcript'): sample_transcript_attr,
@@ -121,23 +137,28 @@ class pbta2vec(InMemoryDataset):
             node_dict={
                 # 'gene': torch.from_numpy(gene['name'].values),
                 'sample': torch.from_numpy(sample['short_hist_labels'].values),
+                # 'patient': None
                 # 'transcript': torch.from_numpy(transcript['name'].values)
             },
             node_index_dict={
                 'gene': torch.from_numpy(gene['idx'].values),
                 'sample': torch.from_numpy(sample['idx'].values),
-                'transcript': torch.from_numpy(transcript['idx'].values)
+                'transcript': torch.from_numpy(transcript['idx'].values),
+                'patient': torch.from_numpy(patient['idx'].values)
             },
             num_edges_dict={
                 ('gene', 'from', 'transcript'): gene_transcript.shape[0],
                 ('transcript', 'of', 'gene'): transcript_gene.shape[0],
                 ('sample', 'of', 'transcript'): sample_transcript_index.shape[0],
                 ('transcript', 'from', 'sample'): transcript_sample_index.shape[0],
+                ('sample', 'of', 'patient'): sample_patient.shape[0],
+                ('patient', 'of', 'sample'): patient_sample.shape[0],
             },
             num_nodes_dict={
                 'sample': sample.shape[0],
                 'transcript': transcript.shape[0],
                 'gene': gene.shape[0],
+                'patient': patient.shape[0]
             },
         )
 

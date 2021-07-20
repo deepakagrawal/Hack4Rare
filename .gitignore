@@ -40,3 +40,11 @@
 /data/temp.pt
 /data/test.parquet
 /data/weighted_sample.prof
+/data/metagene2vec.log
+/.amlignore
+/environment.yml
+/pip_reqs.txt
+/condadep.yml
+/dockerfiles/
+/data/aml/
+*.pt
