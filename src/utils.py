@@ -87,7 +87,7 @@ class pbta2vec(InMemoryDataset):
         transcript = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
 
         # Get patient labels
-        path = osp.join(self.raw_dir, 'id_participant.txt')
+        path = osp.join(self.raw_dir, 'id_patient.txt')
         patient = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
 
         # Get sample <-> patient connectivity.
@@ -147,12 +147,12 @@ class pbta2vec(InMemoryDataset):
                 'patient': torch.from_numpy(patient['idx'].values)
             },
             num_edges_dict={
-                ('gene', 'from', 'transcript'): gene_transcript.shape[0],
-                ('transcript', 'of', 'gene'): transcript_gene.shape[0],
-                ('sample', 'of', 'transcript'): sample_transcript_index.shape[0],
-                ('transcript', 'from', 'sample'): transcript_sample_index.shape[0],
-                ('sample', 'of', 'patient'): sample_patient.shape[0],
-                ('patient', 'of', 'sample'): patient_sample.shape[0],
+                ('gene', 'from', 'transcript'): gene_transcript.shape[1],
+                ('transcript', 'of', 'gene'): transcript_gene.shape[1],
+                ('sample', 'of', 'transcript'): sample_transcript_index.shape[1],
+                ('transcript', 'from', 'sample'): transcript_sample_index.shape[1],
+                ('sample', 'of', 'patient'): sample_patient.shape[1],
+                ('patient', 'of', 'sample'): patient_sample.shape[1],
             },
             num_nodes_dict={
                 'sample': sample.shape[0],

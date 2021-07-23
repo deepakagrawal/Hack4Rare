@@ -10,6 +10,8 @@ import argparse
 import logging
 import tensorflow as tf
 import tensorboard as tb
+import time
+
 tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 from torch.utils.tensorboard import SummaryWriter
 
@@ -47,55 +49,59 @@ def train(epoch, log_steps=500, eval_steps=1000, writer=None):
             print((f'Epoch: {epoch}, Step: {i + 1:05d}/{len(loader)}, '
                    f'Acc: {acc:.4f}'))
 
-    return total_loss/len(loader)
-
+    return total_loss / len(loader)
 
 
 @torch.no_grad()
 def test(train_ratio=0.1):
     model.eval()
-
     z = model('sample', batch=data.node_index_dict['sample'])
     y = data.node_dict['sample']
-
     perm = torch.randperm(z.size(0))
     train_perm = perm[:int(z.size(0) * train_ratio)]
     test_perm = perm[int(z.size(0) * train_ratio):]
-
     return model.test(z[train_perm], y[train_perm], z[test_perm],
                       y[test_perm], max_iter=100, n_jobs=-1)
 
 
-def get_embedding_metadata(node_type: str, path: str, embed_file):
+def get_embedding_metadata(node_type: str, path: str, writer_path: str, step: str = '00000'):
     "Get node embeddings and metadata files"
     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
-    np.savetxt(osp.join(path, node_type + embed_file), z, delimiter='\t')
+    np.savetxt(osp.join(writer_path, step, node_type, 'tensor.tsv'), z, delimiter='\t')
+    if node_type != "sample":
+        df = pd.read_csv(osp.join(path, 'raw', f'id_{node_type}.txt'), sep='\t', names=['id', 'label'])
+        df.to_csv(osp.join(writer_path, step, node_type, 'metadata.tsv'), sep='\t', index=False)
+    else:
+        df = pd.read_csv(osp.join(path, 'raw', f'id_{node_type}.txt'), sep='\t')
+        df.to_csv(osp.join(writer_path, step, node_type, 'metadata.tsv'), sep='\t', index=False)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--modelpath", help="File name of the pytorch model", default="torch_model.pt")
-    parser.add_argument("--embed", help="File name of the all embedding file", default="weighted_embedding_v1.tsv")
-    parser.add_argument("--meta", help="File name of the all metada file", default="weighted_metadata_v1.tsv")
     parser.add_argument("--use_weight", help="Enable weighted metapath2vec", default=False, action="store_true")
     parser.add_argument("--output", help="Path of the output directory", default="data/PBTA/")
+    parser.add_argument("--runno", help="Run number/ model number", default=None)
     parser.add_argument("-e", "--epoch", help="Number of epochs for training", default=0, type=int)
     parser.add_argument("-b", "--batch", help="number of samples in each batch", default=4, type=int)
     parser.add_argument("--embed_dim", help="Node Embedding dimension", default=64, type=int)
     args = parser.parse_args()
 
+    if args.runno is None:
+        args.runno = time.strftime("/%Y/%m/%d")
+        (Path(args.output) / args.runno).mkdir(parents=True, exist_ok=True)
+
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S', filename= 'data/metagene2vec.log',
-                    filemode='w')
+                        datefmt='%a, %d %b %Y %H:%M:%S', filename='data/metagene2vec.log',
+                        filemode='w')
 
     consoleHandler = logging.StreamHandler()
-
 
     logger = logging.getLogger("PBTAapp_logger")
     logger.addHandler(consoleHandler)
 
-    MODEL_PATH = osp.join(args.output, args.modelpath)
-    writer = SummaryWriter(f"runs/{Path(args.modelpath).stem}")
+    MODEL_PATH = osp.join(args.output, args.runno, args.modelpath)
+    writer = SummaryWriter(str(Path(args.output) / args.runno / "tensorboard_logs"))
 
     logger.info("Load PBTA kallisto dataset and save preprocessed data")
     data = data_processing(args.output)
@@ -106,6 +112,8 @@ if __name__ == "__main__":
     metapath = [
         ('gene', 'from', 'transcript'),
         ('transcript', 'from', 'sample'),
+        ('sample', 'of', 'patient'),
+        ('patient', 'has', 'sample'),
         ('sample', 'of', 'transcript'),
         ('transcript', 'of', 'gene')
     ]
@@ -119,10 +127,10 @@ if __name__ == "__main__":
                          data.edge_weight if args.use_weight else None,
                          embedding_dim=args.embed_dim,
                          metapath=metapath,
-                         walk_length=15,
-                         context_size=5,
+                         walk_length=25,
+                         context_size=7,
                          walks_per_node=10,
-                         num_negative_samples=5,
+                         num_negative_samples=7,
                          sparse=True
                          ).to(device)
 
@@ -161,7 +169,7 @@ if __name__ == "__main__":
         torch.save({'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict()}, MODEL_PATH)
-        for node_type in data.num_nodes_dict.keys():
+        for node_type in model.start.keys():
             embeddings = model(node_type, batch=data.node_index_dict[node_type]).detach().cpu().numpy()
             writer.add_histogram(f'Embeddings/{node_type}', embeddings + epoch, epoch)
 
@@ -171,8 +179,17 @@ if __name__ == "__main__":
     model.cpu()
 
     logger.info("Getting node embedding from saved model")
-    get_embedding_metadata('transcript', args.output, args.embed)
-    get_embedding_metadata('gene', args.output, args.embed)
-    get_embedding_metadata('sample', args.output, args.embed)
+    global_step = '0000'
+    with open(osp.join(writer.log_dir, "projector_config.pbtxt"), 'w') as projector_config:
+        for node_type in model.start.keys():
+            (Path(writer.log_dir) / global_step / node_type).mkdir(parents=True, exist_ok=True)
+            projector_config.write(
+f'''embeddings {{
+    tensor_name: "{node_type}:{global_step}"
+    metadata_path: "{global_step}/{node_type}\\\\metadata.tsv"
+    tensor_path: "{global_step}/{node_type}\\\\tensor.tsv"
+}}''')
+            get_embedding_metadata(node_type, args.output, writer.log_dir, global_step)
+
     if writer is not None:
         writer.close()

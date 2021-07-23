@@ -14,7 +14,7 @@ parser.add_argument("--output", help="path of the output location where raw file
 parser.add_argument("--gene_id", help="filename of the id_gene file", default="id_gene.txt")
 parser.add_argument("--transcript_id", help="filename of the id_transcript file", default="id_transcript.txt")
 parser.add_argument("--sample_id", help="filename of the id_sample file", default="id_sample.txt")
-parser.add_argument("--participant_id", help="filename of the id_participant file", default="id_participant.txt")
+parser.add_argument("--participant_id", help="filename of the id_participant file", default="id_patient.txt")
 parser.add_argument("--sample_transcript", help="filename of the sample_transcript file", default="sample_transcript.parquet")
 parser.add_argument("--transcript_gene", help="filename of the transcript_gene file", default="transcript_gene.txt")
 parser.add_argument("--sample_participant", help="filename of the sample_participant file", default="sample_participant.txt")
@@ -45,8 +45,8 @@ df_hist: pd.DataFrame = pd.read_csv(args.hist, sep="\t")
 
 
 logger.info("Save node_ids")
-df.gene_id.drop_duplicates().reset_index().to_csv(args.output / args.gene_id, sep='\t', header=False, index=False)
-df.transcript_id.drop_duplicates().to_csv(args.output / args.transcript_id, sep='\t', header=False)
+df.gene_id.drop_duplicates().reset_index(drop=True).reset_index().to_csv(args.output / args.gene_id, sep='\t', header=False, index=False)
+df.transcript_id.drop_duplicates().reset_index(drop=True).reset_index().to_csv(args.output / args.transcript_id, sep='\t', header=False, index=False)
 samples: pd.DataFrame = pd.DataFrame({'Kids_First_Biospecimen_ID': df.columns.to_numpy()[2:-1]})
 samples = samples.merge(df_hist, on=['Kids_First_Biospecimen_ID'], how='left')
 samples.drop(columns=['sample_id'], inplace=True)
@@ -60,7 +60,7 @@ samples["HGAT_chop_label"] = 0
 samples.loc[samples.sample_id.isin(chop_samples), "HGAT_chop_label"] = 1
 samples.to_csv(args.output / args.sample_id, sep='\t', index=False)
 samples = pd.read_csv(args.output / args.sample_id, sep='\t', usecols=['id', 'sample_id'])
-patients = df_hist['Kids_First_Participant_ID'].drop_duplicates().reset_index().rename(columns={'index':'id'})
+patients = df_hist.loc[df_hist.Kids_First_Biospecimen_ID.isin(samples.sample_id),'Kids_First_Participant_ID'].drop_duplicates().reset_index(drop=True).reset_index().rename(columns={'index':'id'})
 patients.to_csv(args.output / args.participant_id, sep='\t', index=False, header=False)
 
 

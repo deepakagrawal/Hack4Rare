@@ -23,6 +23,7 @@ def naive_weighted_choices_torch(weights, rowptr, rowcount, col):
 
 def sample(src: SparseTensor, num_neighbors: int,
            subset: Optional[torch.Tensor] = None) -> torch.Tensor:
+
     rowptr, col, weight = src.csr()
     rowcount = src.storage.rowcount()
 
