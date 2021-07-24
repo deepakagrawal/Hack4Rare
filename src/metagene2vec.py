@@ -3,9 +3,7 @@ from torch.nn import Embedding
 from torch.utils.data import DataLoader
 from torch_sparse import SparseTensor
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
 from src.sample import sample
-import time
 EPS = 1e-15
 
 

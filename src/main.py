@@ -1,3 +1,4 @@
+import setuptools
 import os.path as osp
 import numpy as np
 import pandas as pd
@@ -68,12 +69,13 @@ def get_embedding_metadata(node_type: str, path: str, writer_path: str, step: st
     "Get node embeddings and metadata files"
     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
     np.savetxt(osp.join(writer_path, step, node_type, 'tensor.tsv'), z, delimiter='\t')
-    if node_type != "sample":
-        df = pd.read_csv(osp.join(path, 'raw', f'id_{node_type}.txt'), sep='\t', names=['id', 'label'])
-        df.to_csv(osp.join(writer_path, step, node_type, 'metadata.tsv'), sep='\t', index=False)
-    else:
+    if node_type in ("sample", "patient"):
         df = pd.read_csv(osp.join(path, 'raw', f'id_{node_type}.txt'), sep='\t')
         df.to_csv(osp.join(writer_path, step, node_type, 'metadata.tsv'), sep='\t', index=False)
+    else:
+        df = pd.read_csv(osp.join(path, 'raw', f'id_{node_type}.txt'), sep='\t', names=['id', 'label'])
+        df.to_csv(osp.join(writer_path, step, node_type, 'metadata.tsv'), sep='\t', index=False)
+
 
 
 if __name__ == "__main__":
@@ -85,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epoch", help="Number of epochs for training", default=0, type=int)
     parser.add_argument("-b", "--batch", help="number of samples in each batch", default=4, type=int)
     parser.add_argument("--embed_dim", help="Node Embedding dimension", default=64, type=int)
+    parser.add_argument("--device", help="cuda or cpu device to use", default='cpu', type=str)
     args = parser.parse_args()
 
     if args.runno is None:
@@ -106,7 +109,9 @@ if __name__ == "__main__":
     logger.info("Load PBTA kallisto dataset and save preprocessed data")
     data = data_processing(args.output)
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if args.device is not None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     logger.info(f"Device used for model training: {device}")
 
     metapath = [
@@ -127,10 +132,10 @@ if __name__ == "__main__":
                          data.edge_weight if args.use_weight else None,
                          embedding_dim=args.embed_dim,
                          metapath=metapath,
-                         walk_length=25,
+                         walk_length=15,
                          context_size=7,
-                         walks_per_node=10,
-                         num_negative_samples=7,
+                         walks_per_node=30,
+                         num_negative_samples=5,
                          sparse=True
                          ).to(device)
 

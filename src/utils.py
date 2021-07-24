@@ -88,7 +88,7 @@ class pbta2vec(InMemoryDataset):
 
         # Get patient labels
         path = osp.join(self.raw_dir, 'id_patient.txt')
-        patient = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
+        patient = pandas.read_csv(path, sep='\t',  index_col=1)
 
         # Get sample <-> patient connectivity.
         path = osp.join(self.raw_dir, 'sample_participant.txt')

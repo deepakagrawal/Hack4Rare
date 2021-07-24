@@ -60,8 +60,8 @@ samples["HGAT_chop_label"] = 0
 samples.loc[samples.sample_id.isin(chop_samples), "HGAT_chop_label"] = 1
 samples.to_csv(args.output / args.sample_id, sep='\t', index=False)
 samples = pd.read_csv(args.output / args.sample_id, sep='\t', usecols=['id', 'sample_id'])
-patients = df_hist.loc[df_hist.Kids_First_Biospecimen_ID.isin(samples.sample_id),'Kids_First_Participant_ID'].drop_duplicates().reset_index(drop=True).reset_index().rename(columns={'index':'id'})
-patients.to_csv(args.output / args.participant_id, sep='\t', index=False, header=False)
+patients = df_hist.loc[df_hist.Kids_First_Biospecimen_ID.isin(samples.sample_id),['Kids_First_Participant_ID', 'pathology_diagnosis']].drop_duplicates(subset='Kids_First_Participant_ID').reset_index(drop=True).reset_index().rename(columns={'index':'idx', 'Kids_First_Participant_ID': 'name'})
+patients.to_csv(args.output / args.participant_id, sep='\t', index=False)
 
 
 logger.info('Start writing sample_patient.txt')
