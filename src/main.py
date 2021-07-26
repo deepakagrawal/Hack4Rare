@@ -69,7 +69,7 @@ def get_embedding_metadata(node_type: str, path: str, writer_path: str, step: st
     "Get node embeddings and metadata files"
     z = model(node_type, batch=data.node_index_dict[node_type]).detach().numpy()
     np.savetxt(osp.join(writer_path, step, node_type, 'tensor.tsv'), z, delimiter='\t')
-    if node_type in ("sample", "patient"):
+    if node_type in ("sample", "patient", 'gene'):
         df = pd.read_csv(osp.join(path, 'raw', f'id_{node_type}.txt'), sep='\t')
         df.to_csv(osp.join(writer_path, step, node_type, 'metadata.tsv'), sep='\t', index=False)
     else:
@@ -87,8 +87,9 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--epoch", help="Number of epochs for training", default=0, type=int)
     parser.add_argument("-b", "--batch", help="number of samples in each batch", default=4, type=int)
     parser.add_argument("--embed_dim", help="Node Embedding dimension", default=64, type=int)
-    parser.add_argument("--device", help="cuda or cpu device to use", default='cpu', type=str)
+    parser.add_argument("--device", help="cuda or cpu device to use", default=None, type=str)
     args = parser.parse_args()
+    device = args.device
 
     if args.runno is None:
         args.runno = time.strftime("/%Y/%m/%d")
@@ -109,7 +110,7 @@ if __name__ == "__main__":
     logger.info("Load PBTA kallisto dataset and save preprocessed data")
     data = data_processing(args.output)
 
-    if args.device is not None:
+    if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     logger.info(f"Device used for model training: {device}")
@@ -134,12 +135,12 @@ if __name__ == "__main__":
                          metapath=metapath,
                          walk_length=15,
                          context_size=7,
-                         walks_per_node=30,
+                         walks_per_node=100,
                          num_negative_samples=5,
                          sparse=True
                          ).to(device)
 
-    loader = model.loader(batch_size=args.batch, shuffle=True, num_workers=0)
+    loader = model.loader(batch_size=args.batch, shuffle=True, num_workers=8)
 
     logger.info("Show some positive and negative samples")
     for idx, (pos_rw, neg_rw) in enumerate(loader):

@@ -44,9 +44,20 @@ logger.info("Read PBTA histology file")
 df_hist: pd.DataFrame = pd.read_csv(args.hist, sep="\t")
 
 
+logger.info("Calaculate gene labels based on sample histology")
+sample_cols = df.columns.to_list()[2:-1]
+gene_cols = df.gene_id.drop_duplicates().to_list()
+df_gene_sample = df.groupby(['gene_id'])[sample_cols].sum()
+df_gene_sample = df_gene_sample.transpose().reset_index().rename(columns={'index': 'Kids_First_Biospecimen_ID'})
+df_gene_sample = df_gene_sample.merge(df_hist)
+df_gene_sample = df_gene_sample.groupby(['pathology_diagnosis'])[gene_cols].sum()
+df_gene_labels = df_gene_sample.idxmax(axis=0).reset_index().reset_index().rename(columns={'level_0':'id','index': 'name', 0: 'pathology_diagnosis'})
+
 logger.info("Save node_ids")
-df.gene_id.drop_duplicates().reset_index(drop=True).reset_index().to_csv(args.output / args.gene_id, sep='\t', header=False, index=False)
+df_gene_labels.to_csv(args.output / args.gene_id, sep='\t', index=False)
+
 df.transcript_id.drop_duplicates().reset_index(drop=True).reset_index().to_csv(args.output / args.transcript_id, sep='\t', header=False, index=False)
+
 samples: pd.DataFrame = pd.DataFrame({'Kids_First_Biospecimen_ID': df.columns.to_numpy()[2:-1]})
 samples = samples.merge(df_hist, on=['Kids_First_Biospecimen_ID'], how='left')
 samples.drop(columns=['sample_id'], inplace=True)
@@ -60,6 +71,7 @@ samples["HGAT_chop_label"] = 0
 samples.loc[samples.sample_id.isin(chop_samples), "HGAT_chop_label"] = 1
 samples.to_csv(args.output / args.sample_id, sep='\t', index=False)
 samples = pd.read_csv(args.output / args.sample_id, sep='\t', usecols=['id', 'sample_id'])
+
 patients = df_hist.loc[df_hist.Kids_First_Biospecimen_ID.isin(samples.sample_id),['Kids_First_Participant_ID', 'pathology_diagnosis']].drop_duplicates(subset='Kids_First_Participant_ID').reset_index(drop=True).reset_index().rename(columns={'index':'idx', 'Kids_First_Participant_ID': 'name'})
 patients.to_csv(args.output / args.participant_id, sep='\t', index=False)
 

@@ -80,7 +80,8 @@ class pbta2vec(InMemoryDataset):
 
         # Get gene labels.
         path = osp.join(self.raw_dir, 'id_gene.txt')
-        gene = pandas.read_csv(path, sep='\t', names=['idx', 'name'], index_col=1)
+        gene = pandas.read_csv(path, sep='\t', index_col=1)
+        gene.rename(columns={'id': 'idx'}, inplace=True)
 
         # Get transcript labels
         path = osp.join(self.raw_dir, 'id_transcript.txt')
