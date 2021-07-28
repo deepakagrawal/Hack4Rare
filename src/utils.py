@@ -137,8 +137,8 @@ class pbta2vec(InMemoryDataset):
             },
             node_dict={
                 # 'gene': torch.from_numpy(gene['name'].values),
-                'sample': torch.from_numpy(sample['short_hist_labels'].values),
-                # 'patient': None
+                'sample': torch.from_numpy(sample['low_high_grade'].values),
+                'patient': torch.from_numpy(sample['low_high_grade'].values),
                 # 'transcript': torch.from_numpy(transcript['name'].values)
             },
             node_index_dict={

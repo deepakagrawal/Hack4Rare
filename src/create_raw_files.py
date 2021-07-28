@@ -69,11 +69,20 @@ short_hist_label_encoder = preprocessing.LabelEncoder()
 samples['short_hist_labels'] = short_hist_label_encoder.fit_transform(samples.short_histology)
 samples["HGAT_chop_label"] = 0
 samples.loc[samples.sample_id.isin(chop_samples), "HGAT_chop_label"] = 1
+samples['low_high_grade'] = 3
+samples.loc[samples.pathology_diagnosis.str.contains('Low-grade glioma'), 'low_high_grade'] = 2
+samples.loc[samples.pathology_diagnosis.str.contains('High-grade glioma'), 'low_high_grade'] = 1
 samples.to_csv(args.output / args.sample_id, sep='\t', index=False)
 samples = pd.read_csv(args.output / args.sample_id, sep='\t', usecols=['id', 'sample_id'])
 
-patients = df_hist.loc[df_hist.Kids_First_Biospecimen_ID.isin(samples.sample_id),['Kids_First_Participant_ID', 'pathology_diagnosis']].drop_duplicates(subset='Kids_First_Participant_ID').reset_index(drop=True).reset_index().rename(columns={'index':'idx', 'Kids_First_Participant_ID': 'name'})
+patients = df_hist.loc[df_hist.Kids_First_Biospecimen_ID.isin(samples.sample_id),['Kids_First_Participant_ID', 'pathology_diagnosis']]
+patients['low_high_grade'] = 3
+patients.loc[patients.pathology_diagnosis.str.contains('Low-grade glioma'), 'low_high_grade'] = 2
+patients.loc[patients.pathology_diagnosis.str.contains('High-grade glioma'), 'low_high_grade'] = 1
+patients = patients.drop_duplicates(subset='Kids_First_Participant_ID').reset_index(drop=True).reset_index().rename(columns={'index':'idx', 'Kids_First_Participant_ID': 'name'})
 patients.to_csv(args.output / args.participant_id, sep='\t', index=False)
+patients.drop(columns=['low_high_grade', 'pathology_diagnosis'], inplace=True)
+patients.rename(columns={'name': 'Kids_First_Participant_ID'}, inplace=True)
 
 
 logger.info('Start writing sample_patient.txt')
@@ -108,7 +117,8 @@ transcripts = pd.read_csv(args.output / args.transcript_id, sep='\t', names=['id
 df_transcript_gene = df_transcript_gene.merge(transcripts, on=['transcript_id'])
 df_transcript_gene.drop(columns='transcript_id', inplace=True)
 df_transcript_gene.rename(columns={'id': 'transcript_id'}, inplace=True)
-gene = pd.read_csv(args.output / args.gene_id, sep='\t', names=['id', 'gene_id'])
+gene = pd.read_csv(args.output / args.gene_id, sep='\t', usecols=['id', 'name'])
+gene.rename(columns={'name':'gene_id'}, inplace=True)
 df_transcript_gene = df_transcript_gene.merge(gene, on=['gene_id'])
 df_transcript_gene.drop(columns='gene_id', inplace=True)
 df_transcript_gene.rename(columns={'id': 'gene_id'}, inplace=True)

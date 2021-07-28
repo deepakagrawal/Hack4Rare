@@ -54,7 +54,7 @@ def train(epoch, log_steps=500, eval_steps=1000, writer=None):
 
 
 @torch.no_grad()
-def test(train_ratio=0.1):
+def test(train_ratio=0.2):
     model.eval()
     z = model('sample', batch=data.node_index_dict['sample'])
     y = data.node_dict['sample']
@@ -140,7 +140,7 @@ if __name__ == "__main__":
                          sparse=True
                          ).to(device)
 
-    loader = model.loader(batch_size=args.batch, shuffle=True, num_workers=8)
+    loader = model.loader(batch_size=args.batch, shuffle=True, num_workers=0)
 
     logger.info("Show some positive and negative samples")
     for idx, (pos_rw, neg_rw) in enumerate(loader):
