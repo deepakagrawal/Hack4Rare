@@ -1,6 +1,6 @@
 # Hack4Rare
 
-[![Open in Visual Studio Code](https://open.vscode.dev/badges/open-in-vscode.svg)](https://open.vscode.dev/organization/repository)
+[![Open in Visual Studio Code](https://open.vscode.dev/badges/open-in-vscode.svg)](https://open.vscode.dev/deepakagrawal/Hack4Rare)
 
 Please download the `pbta-gene-expression-kallisto.stranded.rds` data from *OpenPBTA* to `data/` directory. Instructions on how to download the dataset are [here](https://github.com/AlexsLemonade/OpenPBTA-analysis#data-access-via-cavatica).
 
